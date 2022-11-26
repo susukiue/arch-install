@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 
+#############################################################################
+# auto install # echo -e -n "/dev/sda\nBIOS\n2\n" | ./install.sh [password] #
+#############################################################################
+
 mountpoint -q /mnt && echo "[*] Unmount mount point /mnt !" && umount -R /mnt
 
 network(){
@@ -241,12 +245,7 @@ chrootOf(){
     echo -e "\033[32m[*] Currently operating after chroot !\033[0m"
     echo "[*] Replace it with a domestic mirror download source !"
     [[ ! -n "$mn" ]] && echo -e "\033[36m[*] The optional parameter image source sequence is not selected , defaults to 3 !\033[0m" && mn=3
-    if [[ "$mn" == "-1" ]]
-    then
-        mirror
-    else
-        mirror $mn
-    fi
+    [[ "$mn" == "-1" ]] || mirror $mn && mirror
     echo "[*] Set time zone !"
     date "/Asia/Shanghai"
     echo "[*] Set up localization !"
@@ -297,6 +296,8 @@ chrootOf(){
     grub-mkconfig -o /boot/grub/grub.cfg
     (($removable)) && echo "[*] Hooks when setting up mobile installs !" && sed -i '/^HOOKS/s/ block//g' /etc/mkinitcpio.conf && sed -i '/^HOOKS/s/udev/udev block/g' /etc/mkinitcpio.conf
     [[ -n "$password" ]] && echo "[*] Set the root user password !" && echo -e -n "$password\n$password\n" | passwd
+	echo "[*] Install additional networking tools !"
+	echo -e -n "y\n" | pacman -S dhcpcd dialog wpa_supplicant
     mountpoint -q /mnt && echo "[*] Unmount mount point /mounts/* !" && umount -R /mounts
 }
 
@@ -315,3 +316,7 @@ else
 fi
 
 exit 0
+
+#############################################################################
+# auto install # echo -e -n "/dev/sda\nBIOS\n2\n" | ./install.sh [password] #
+#############################################################################

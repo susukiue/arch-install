@@ -353,8 +353,7 @@ pacman -S vim openssh
 
 ```shell
 # pacman -S efibootmgr
-# mount -t efivarfs efivarfs /sys/firmware/efi/efivars
-# grub-install --target=x86_64-efi --efi-directory=esp --bootloader-id=GRUB --recheck
+# grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB --recheck
 ```
 
 ### **使用 *BIOS* 引导**
@@ -366,7 +365,7 @@ pacman -S vim openssh
 > 使用 **(移动设备)U盘** 作为 **arch** 的基本盘在安装 **GRUB** 时需要加上 `--removable`
 >
 > - ```shell
->   # grub-install --target=x86_64-efi --efi-directory=esp --bootloader-id=GRUB --recheck --removable
+>   # grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB --recheck --removable
 >   ```
 >
 > - ```shell
@@ -411,10 +410,10 @@ passwd: password updated successfully
 
 ## 完成安装
 
-(*可选的*) **安装** *dialog* 、*wpa_supplicant* 来更好地支持 WiFi 连接
+(*可选的*) **安装** *dhcpcd* 、*dialog* 、*wpa_supplicant* 来更好地支持 网络 连接
 
 ```shell
-# pacman -S dialog wpa_supplicant
+# pacman -S dhcpcd dialog wpa_supplicant
 ```
 
 > 重启后 使用 ***wifi-menu*** 来连接 WIFI
