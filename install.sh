@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 
-#############################################################################
-# auto install # echo -e -n "/dev/sda\nBIOS\n2\n" | ./install.sh [password] #
-#############################################################################
+######################################################################################
+# BIOS install # echo -e -n "/dev/sda\nBIOS\n2\n" | ./install.sh "[password] ... "   #
+# UEFI install # echo -e -n "/dev/sda\nUEFI\n2\n" | ./install.sh "123 2 localhost 1" #
+######################################################################################
 
 mountpoint -q /mnt && echo "[*] Unmount mount point /mnt !" && umount -R /mnt
+swapoff --all
 
 network(){
     local status=$(curl baidu.com)
@@ -28,6 +30,12 @@ exists(){
         fi
     done
     echo $((${#args[@]} - ${#exists[@]}))
+}
+
+zero(){
+	local z="$1"
+	z="$(echo "$z" | grep '\.[0-9]*' | sed "s/0\+$//g" | sed "s/\.0*$//g")"
+	[[ -n "$z" ]] && echo "$z" || echo "$1"
 }
 
 sizeTo(){
@@ -72,9 +80,10 @@ size(){
             fi
         fi
     done
-    echo "$z" | sed 's/0\+$//g' | sed 's/\.$//g'
+	echo "$(zero $z)"
 }
 
+prefix=""
 diskInfo(){
     case $2 in
         0 )
@@ -87,12 +96,13 @@ diskInfo(){
 }
 
 ddOfm(){
-    dd if=/dev/zero of=$1 bs=2048k count=$(($(expr $2 % 2) + $(expr $2 / 2)))
+    local x=$(echo "$2" | awk '{printf "%d", $1 % 2}') y=$(echo "$2" | awk '{printf "%d", $1 / 2}')
+	dd if=/dev/zero of=$1 bs=2048k count=$(($x + $y))
 }
 
 sizeOfUEFI="256 M"
 diskOfUEFI(){
-    local d=$1 s=$2
+    local d=$1 s=$2 p=$prefix
     [[ -n "$d" ]] || d=$disk
     [[ -n "$s" ]] || s=$dsm
     echo "[*] A brand new UEFI partition is starting !"
@@ -100,25 +110,28 @@ diskOfUEFI(){
     echo "[EFI] Allocate $(size m $sizeOfUEFI)M !"
     echo "[EFI] Set type to 'EFI System' !"
     echo "[SYSTEM] All the rest are allocated to the system partition !"
-    echo "[SYSTEM] Allocate $(($s - $(size m $sizeOfUEFI)))M !"
+	echo "[SYSTEM] Allocate $(echo "$s $(size m $sizeOfUEFI)" | awk '{printf "%d", $1 - $2}')M !"
     echo "[SYSTEM] Set type to 'Linux filesystem' !"
-    echo -e -n "g\nn\n1\n2048\n$(($(size m $sizeOfUEFI) * 2048))\nt\n4\nn\n2\n$(($(size m $sizeOfUEFI) * 2048 + 1))\n$(($(diskInfo $d 1) - $(($(size m $sizeOfUEFI) * 2048))))\nw\n" | fdisk $d
+    echo -e -n "g\n  \
+		n\n1\n2048\n$(($(size m $sizeOfUEFI) * 2048))\nt\n1\n  \
+		n\n2\n$(($(size m $sizeOfUEFI) * 2048 + 1))\n$(($(diskInfo $d 1) - $(($(size m $sizeOfUEFI) * 2048))))\n  \
+		w\n" | fdisk $d
     echo "[*] Partition complete !"
     echo "[*] Format the boot partition as 'fat' !"
-    mkfs.fat -F 32 /dev/sda1
+    mkfs.fat -F 32 "${d}${p}1"
     echo "[*] Format the system partition as 'ext4' !"
-    mkfs.ext4 ${d}2
+    mkfs.ext4 "${d}${p}2"
     echo "[*] Formatting is complete !"
-    echo "[*] Mount system partition ${d}2 !"
-    mount ${d}2 /mnt
-    echo "[*] Mount boot partition ${d}1 !"
+    echo "[*] Mount system partition ${d}${p}2 !"
+    mount "${d}${p}2" /mnt
+    echo "[*] Mount boot partition ${d}${p}1 !"
     [[ -e /mnt/boot ]] || mkdir /mnt/boot -p
-    mount ${d}1 /mnt/boot
+    mount "${d}${p}1" /mnt/boot
 }
 
 sizeOfBIOS="2 M"
 diskOfBIOS(){
-    local d=$1 s=$2
+    local d=$1 s=$2 p=$prefix
     [[ -n "$d" ]] || d=$disk
     [[ -n "$s" ]] || s=$dsm
     echo "[*] A brand new BIOS partition is starting !"
@@ -126,20 +139,25 @@ diskOfBIOS(){
     echo "[BIOS] Allocate $(size m $sizeOfBIOS)M !"
     echo "[BIOS] Set type to 'BIOS boot' !"
     echo "[SYSTEM] All the rest are allocated to the system partition !"
-    echo "[SYSTEM] Allocate $(($s - $(size m $sizeOfBIOS)))M !"
+	echo "[SYSTEM] Allocate $(echo "$s $(size m $sizeOfBIOS)" | awk '{printf "%d", $1 - $2}')M !"
     echo "[SYSTEM] Set type to 'Linux filesystem' !"
-    echo -e -n "g\nn\n1\n2048\n$(($(size m $sizeOfBIOS) * 2048))\nt\n4\nn\n2\n$(($(size m $sizeOfBIOS) * 2048 + 1))\n$(($(diskInfo $d 1) - $(($(size m $sizeOfBIOS) * 2048))))\nw\n" | fdisk $d
+    echo -e -n "g\n  \
+		n\n1\n2048\n$(($(size m $sizeOfBIOS) * 2048))\nt\n4\n  \
+		n\n2\n$(($(size m $sizeOfBIOS) * 2048 + 1))\n$(($(diskInfo $d 1) - $(($(size m $sizeOfBIOS) * 2048))))\n  \
+		w\n" | fdisk $d
     echo "[*] Partition complete !"
     echo "[*] Format the system partition as 'ext4' !"
-    mkfs.ext4 ${d}2
+    mkfs.ext4 "${d}${p}2"
     echo "[*] Formatting is complete !"
-    echo "[*] Mount system partition ${d}2 !"
-    mount ${d}2 /mnt
+    echo "[*] Mount system partition ${d}${p}2 !"
+    mount "${d}${p}2" /mnt
 }
 
-disk=""
-types=""
-dsm=""
+diskOfDIY(){
+	echo ""
+}
+
+disk="" types="" dsm=""
 diskOf(){
     fdisk -l
     echo -n "[-] Enter your disk(eg:/dev/sda): "
@@ -240,12 +258,23 @@ date(){
     sync $path
 }
 
+#paseOf(){
+#	local args=("${@//#/}") p=""
+#	case $((${#args[@]} - $(())))
+#		3 )
+#			;&
+#		2 )
+#			;&
+#		1 )
+#	esac
+#}
+
 chrootOf(){
     local args=("$@") password=$3 mn=$4 hostname=$5 types=$6 removable=$7 mounts=() i=7
     echo -e "\033[32m[*] Currently operating after chroot !\033[0m"
     echo "[*] Replace it with a domestic mirror download source !"
     [[ ! -n "$mn" ]] && echo -e "\033[36m[*] The optional parameter image source sequence is not selected , defaults to 3 !\033[0m" && mn=3
-    [[ "$mn" == "-1" ]] || mirror $mn && mirror
+    (($mn != -1)) && mirror $mn || mirror
     echo "[*] Set time zone !"
     date "/Asia/Shanghai"
     echo "[*] Set up localization !"
@@ -296,14 +325,23 @@ chrootOf(){
     grub-mkconfig -o /boot/grub/grub.cfg
     (($removable)) && echo "[*] Hooks when setting up mobile installs !" && sed -i '/^HOOKS/s/ block//g' /etc/mkinitcpio.conf && sed -i '/^HOOKS/s/udev/udev block/g' /etc/mkinitcpio.conf
     [[ -n "$password" ]] && echo "[*] Set the root user password !" && echo -e -n "$password\n$password\n" | passwd
-	echo "[*] Install additional networking tools !"
-	echo -e -n "y\n" | pacman -S dhcpcd dialog wpa_supplicant
+	echo "[*] Install additional tools !"
+	echo -e -n "\ny\n" | \
+		pacman -S dhcpcd wpa_supplicant iwd netctl dialog wireless_tools vim openssh
+	echo "[*] Setting services !"
+	services
     mountpoint -q /mnt && echo "[*] Unmount mount point /mounts/* !" && umount -R /mounts
+}
+
+services(){
+	systemctl enable iwd
+	systemctl enable netctl
+	systemctl enable sshd
 }
 
 if [[ -n "$1" && $1 == 1 ]]
 then
-    chrootOf $@
+    chrootOf "$@"
 else
     network && (($?)) && exit 1
     sync
@@ -313,10 +351,12 @@ else
     arch-chroot /mnt /bin/bash -c "$0 1 $disk $@"
     echo "[*] Unmount all mounted partitions !"
     mountpoint -q /mnt && echo "[*] Unmount mount point /mnt !" && umount -R /mnt
+	swapoff --all
 fi
 
 exit 0
 
-#############################################################################
-# auto install # echo -e -n "/dev/sda\nBIOS\n2\n" | ./install.sh [password] #
-#############################################################################
+######################################################################################
+# BIOS install # echo -e -n "/dev/sda\nBIOS\n2\n" | ./install.sh "[password] ... "   #
+# UEFI install # echo -e -n "/dev/sda\nUEFI\n2\n" | ./install.sh "123 2 localhost 1" #
+######################################################################################
