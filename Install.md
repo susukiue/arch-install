@@ -264,6 +264,10 @@
 ```shell
 # pacstrap /mnt base linux linux-firmware
 ```
+**生成 fstab 文件**
+```shell
+# genfstab -U /mnt >> /mnt/etc/fstab
+```
 
 ### 进入 挂载的 系统
 

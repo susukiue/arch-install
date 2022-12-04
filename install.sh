@@ -33,16 +33,16 @@ exists(){
 }
 
 zero(){
-	local z="$1"
-	z="$(echo "$z" | grep '\.[0-9]*' | sed "s/0\+$//g" | sed "s/\.0*$//g")"
-	[[ -n "$z" ]] && echo "$z" || echo "$1"
+    local z="$1"
+    z="$(echo "$z" | grep '\.[0-9]*' | sed "s/0\+$//g" | sed "s/\.0*$//g")"
+    [[ -n "$z" ]] && echo "$z" || echo "$1"
 }
 
 sizeTo(){
     case $1 in
-        "bit" | "Bit" | "BiT" | "BIT" )
+        "b" | "bit" | "Bit" | "BiT" | "BIT" )
             echo "b" ;;
-        "b" | "byt" | "byte" | "bytes" | "B" | "Byt" | "Byte" | "Bytes" | "BYT" | "BYTE" | "BYTES" )
+        "byt" | "byte" | "bytes" | "B" | "Byt" | "Byte" | "Bytes" | "BYT" | "BYTE" | "BYTES" )
             echo "B" ;;
         "k" | "K" | "kb" | "KB" | "Kib" | "KiB" | "KIB" )
             echo "K" ;;
@@ -56,6 +56,7 @@ sizeTo(){
 }
 
 size(){
+    (($# == 3)) || return 0
     declare -A local s=(
         ["b"]=0 ["B"]=1 ["K"]=2 ["M"]=3 ["G"]=4 ["T"]=5
     )
@@ -80,7 +81,7 @@ size(){
             fi
         fi
     done
-	echo "$(zero $z)"
+    echo "$(zero $z)"
 }
 
 prefix=""
@@ -97,7 +98,7 @@ diskInfo(){
 
 ddOfm(){
     local x=$(echo "$2" | awk '{printf "%d", $1 % 2}') y=$(echo "$2" | awk '{printf "%d", $1 / 2}')
-	dd if=/dev/zero of=$1 bs=2048k count=$(($x + $y))
+    dd if=/dev/zero of=$1 bs=2048k count=$(($x + $y))
 }
 
 sizeOfUEFI="256 M"
@@ -110,12 +111,12 @@ diskOfUEFI(){
     echo "[EFI] Allocate $(size m $sizeOfUEFI)M !"
     echo "[EFI] Set type to 'EFI System' !"
     echo "[SYSTEM] All the rest are allocated to the system partition !"
-	echo "[SYSTEM] Allocate $(echo "$s $(size m $sizeOfUEFI)" | awk '{printf "%d", $1 - $2}')M !"
+    echo "[SYSTEM] Allocate $(echo "$s $(size m $sizeOfUEFI)" | awk '{printf "%d", $1 - $2}')M !"
     echo "[SYSTEM] Set type to 'Linux filesystem' !"
     echo -e -n "g\n  \
-		n\n1\n2048\n$(($(size m $sizeOfUEFI) * 2048))\nt\n1\n  \
-		n\n2\n$(($(size m $sizeOfUEFI) * 2048 + 1))\n$(($(diskInfo $d 1) - $(($(size m $sizeOfUEFI) * 2048))))\n  \
-		w\n" | fdisk $d
+        n\n1\n2048\n$(($(size m $sizeOfUEFI) * 2048))\nt\n1\n  \
+        n\n2\n$(($(size m $sizeOfUEFI) * 2048 + 1))\n$(($(diskInfo $d 1) - $(($(size m $sizeOfUEFI) * 2048))))\n  \
+        w\n" | fdisk $d
     echo "[*] Partition complete !"
     echo "[*] Format the boot partition as 'fat' !"
     mkfs.fat -F 32 "${d}${p}1"
@@ -139,12 +140,12 @@ diskOfBIOS(){
     echo "[BIOS] Allocate $(size m $sizeOfBIOS)M !"
     echo "[BIOS] Set type to 'BIOS boot' !"
     echo "[SYSTEM] All the rest are allocated to the system partition !"
-	echo "[SYSTEM] Allocate $(echo "$s $(size m $sizeOfBIOS)" | awk '{printf "%d", $1 - $2}')M !"
+    echo "[SYSTEM] Allocate $(echo "$s $(size m $sizeOfBIOS)" | awk '{printf "%d", $1 - $2}')M !"
     echo "[SYSTEM] Set type to 'Linux filesystem' !"
     echo -e -n "g\n  \
-		n\n1\n2048\n$(($(size m $sizeOfBIOS) * 2048))\nt\n4\n  \
-		n\n2\n$(($(size m $sizeOfBIOS) * 2048 + 1))\n$(($(diskInfo $d 1) - $(($(size m $sizeOfBIOS) * 2048))))\n  \
-		w\n" | fdisk $d
+        n\n1\n2048\n$(($(size m $sizeOfBIOS) * 2048))\nt\n4\n  \
+        n\n2\n$(($(size m $sizeOfBIOS) * 2048 + 1))\n$(($(diskInfo $d 1) - $(($(size m $sizeOfBIOS) * 2048))))\n  \
+        w\n" | fdisk $d
     echo "[*] Partition complete !"
     echo "[*] Format the system partition as 'ext4' !"
     mkfs.ext4 "${d}${p}2"
@@ -153,8 +154,80 @@ diskOfBIOS(){
     mount "${d}${p}2" /mnt
 }
 
-diskOfDIY(){
-	echo ""
+partitionTableTo(){
+    case $1 in
+        "g" | "G" | "gpt" | "GPT" )
+            (($2)) && echo "g" || echo "GPT" ;;
+        "m" | "M" | "mbr" | "MBR" )
+            (($2)) && echo "o" || echo "MBR" ;;
+        "i" | "I" | "irix" | "IRIX" )
+            (($2)) && echo "G" || echo "SGI" ;;
+        "s" | "S" | "sun" | "SUN" )
+            (($2)) && echo "s" || echo "SUN" ;;
+    esac
+}
+
+aext(){
+    echo "$([[ -n "$1" && -n "$2" ]] && echo "+$1$2")"
+}
+
+inputToDIY(){
+    local l c t s i=0 pk=() pt=()
+    declare -A local p
+    while true
+    do
+        echo "[*] Choose your partition table type !"
+        echo "+++++++++++++++++++++++++++++++"
+        echo "| <GPT> - enter /g/gpt/G/GPT/ |"
+        echo "| <MBR> - enter /g/gpt/G/GPT/ |"
+        echo "+++++++++++++++++++++++++++++++"
+        echo -n "[-] Select to (Enter directly to skip !): "
+        read c
+        [[ ! -n "$c" ]] && echo -e "\033[36m[*] Skip setting the partition type !\033[0m" && break
+        [[ -n "$(partitionTableTo $c)" ]] && l="$(partitionTableTo $c 1)\n" \
+            && echo "[*] The partition type is set to $(partitionTableTo $c) !" && break \
+            || echo -e "\033[31m[x] Invalid input !\033[0m" && continue
+    done
+    while true
+    do
+        echo -n "[*] Create partition number (Enter directly to skip!): "
+        read c
+        [[ ! -n "$c" ]] && echo -e "\033[36m[*] Skip partition creation !\033[0m" && break
+        [[ ! "$c" =~ ^[0-9]*$ ]] && echo -e "\033[31m[x] Invalid input !\033[0m" && continue
+        [[ ! "${!pk[@]}" =~ $c ]] && echo "[*] Create a partition with sequence number $c !" && pk[$c]=${#p[@]} \
+            || echo -e "\033[36m[*] The partition with sequence number $c has been recreated !\033[0m"
+        p[${pk[$c]}]="n\n$c\n"
+        echo -n "[-] Enter the partition size (Use : to indicate range): "
+        local ts ss tss se tse
+        read s
+        if [[ "$s" =~ ^.*:.*$ ]]
+        then
+            ss=$(echo "$s" | sed "s/[A-Z|a-z]*:.*$//")
+            tss=$(echo "$s" | sed "s/:.*//" | sed "s/^[0-9|.]*//")
+            se=$(echo "$s" | sed "s/.*://" | sed "s/[A-Z|a-z]*$//")
+            tse=$(echo "$s" | sed "s/.*://" | sed "s/^[0-9|.]*//")
+            p[${pk[$c]}]+="$(($(size m $ss \
+            $([[ ! -n "$tss" ]] && tss="M"; echo "$tss")) * 2048 + 2048))\n$(aext $(size m $se \
+            $([[ ! -n "$tse" ]] && tse="M"; echo "$tse")) M)\n"
+        else
+            ts=$(echo "$s" | sed "s/^[0-9|.]*//")
+            s=$(echo "$s" | sed "s/[A-z|a-z]*$//")
+            p[${pk[$c]}]+="\n$(aext $(size m $s $([[ ! -n "$ts" ]] && ts="M"; echo "$ts")) M)\n"
+        fi
+        echo -n "[*] Set Partition Type (type code): "
+        read t
+        if [[ -n "$t" ]]
+        then
+            ((${#pk[@]} > 1)) && p[${pk[$c]}]+="t\n$c\n$t\n" || p[${pk[$c]}]+="t\n$t\n"
+        fi
+    done
+    echo "[*] Created ${#pk[@]} partitions !"
+    pt=("${pk[@]}")
+    while (($i < ${#pt[@]}))
+    do
+        l+="${p[${pt[i++]}]}"
+    done
+    echo -e -n "${l}w\n" | fdisk $disk
 }
 
 disk="" types="" dsm=""
@@ -182,6 +255,7 @@ diskOf(){
                 diskOfBIOS
                 ;;
             "diy" | "DIY" )
+                inputToDIY
                 ;;
         esac
     else
@@ -217,6 +291,9 @@ install(){
     pacman -Syyu
     echo "[*] Install required packages !"
     pacstrap /mnt base linux linux-firmware
+    echo -n "[*] Generate fstab file "
+    genfstab -U /mnt >> /mnt/etc/fstab
+    [[ -e "/mnt/etc/fstab" ]] && echo "ok !" || echo "failled !"
 }
 
 sync(){
@@ -257,17 +334,6 @@ date(){
     hwclock --systohc
     sync $path
 }
-
-#paseOf(){
-#	local args=("${@//#/}") p=""
-#	case $((${#args[@]} - $(())))
-#		3 )
-#			;&
-#		2 )
-#			;&
-#		1 )
-#	esac
-#}
 
 chrootOf(){
     local args=("$@") password=$3 mn=$4 hostname=$5 types=$6 removable=$7 mounts=() i=7
@@ -325,18 +391,18 @@ chrootOf(){
     grub-mkconfig -o /boot/grub/grub.cfg
     (($removable)) && echo "[*] Hooks when setting up mobile installs !" && sed -i '/^HOOKS/s/ block//g' /etc/mkinitcpio.conf && sed -i '/^HOOKS/s/udev/udev block/g' /etc/mkinitcpio.conf
     [[ -n "$password" ]] && echo "[*] Set the root user password !" && echo -e -n "$password\n$password\n" | passwd
-	echo "[*] Install additional tools !"
-	echo -e -n "\ny\n" | \
-		pacman -S dhcpcd wpa_supplicant iwd netctl dialog wireless_tools vim openssh
-	echo "[*] Setting services !"
-	services
+    echo "[*] Install additional tools !"
+    echo -e -n "\ny\n" | \
+        pacman -S dhcpcd wpa_supplicant iwd netctl dialog wireless_tools vim openssh
+    echo "[*] Setting services !"
+    services
     mountpoint -q /mnt && echo "[*] Unmount mount point /mounts/* !" && umount -R /mounts
 }
 
 services(){
-	systemctl enable iwd
-	systemctl enable netctl
-	systemctl enable sshd
+    systemctl enable iwd
+    systemctl enable netctl
+    systemctl enable sshd
 }
 
 if [[ -n "$1" && $1 == 1 ]]
@@ -351,7 +417,7 @@ else
     arch-chroot /mnt /bin/bash -c "$0 1 $disk $@"
     echo "[*] Unmount all mounted partitions !"
     mountpoint -q /mnt && echo "[*] Unmount mount point /mnt !" && umount -R /mnt
-	swapoff --all
+    swapoff --all
 fi
 
 exit 0
