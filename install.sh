@@ -13,15 +13,17 @@ mountpoint -q /mnt && echo "[*] Unmount mount point /mnt !" && umount -R /mnt
 swapoff --all
 
 network(){
-    local status=$(curl baidu.com)
-    if [[ -n "$status" ]]
-    then
-        echo "[*] network status connecting !"
-        return 0
-    else
-        echo "[x] network status connection failed !"
-        return 1
-    fi
+    local status r=5
+    while (($r && r--))
+    do
+		status="$(curl -s baidu.com)"
+        [[ -n "$status" ]] \
+			&& echo "[*] network status connecting !" \
+			&& break \
+			|| echo "[x] network status connection failed !"
+		sleep 1
+    done
+    return $r
 }
 
 exists(){
@@ -441,12 +443,16 @@ services(){
 
 if [[ -n "$1" && $1 == 1 ]]
 then
+    network && (($?)) && exit 1
     chrootOf "$@"
 else
-    network && (($?)) && exit 1
+    echo "[*] Test network connecting !"
+    network && ((!$?)) && exit 1 
     sync
     diskOf
+    network && ((!$?)) && exit 1
     install
+    network && ((!$?)) && exit 1
     cp $0 /mnt
     arch-chroot /mnt /bin/bash -c "$0 1 $disk $@"
     echo "[*] Unmount all mounted partitions !"
