@@ -4,6 +4,10 @@
 # BIOS install # echo -e -n "/dev/sda\nBIOS\n2\n" | ./install.sh "[password] ... "   #
 # UEFI install # echo -e -n "/dev/sda\nUEFI\n2\n" | ./install.sh "123 2 localhost 1" #
 ######################################################################################
+###########################################################################################################################################
+# custom install # /dev/sda1 [EFI] <300M> "mkfs.vfat" # /dev/sda2 [swap] <4G> "mkswap" # /dev/sda3 [ext4] <ALL> "mkfs.ext4"               #
+# echo -en "/dev/sda\nDIY\ng\n1\n300\n1\n2\n4G\n19\n3\n\n\n\n3\next4\n/mnt\n1\nvfat\n/mnt/boot\n\n2\n" | ./install.sh "123 2 localhost 1" #
+###########################################################################################################################################
 
 mountpoint -q /mnt && echo "[*] Unmount mount point /mnt !" && umount -R /mnt
 swapoff --all
@@ -172,8 +176,10 @@ aext(){
 }
 
 inputToDIY(){
-    local l c t s i=0 pk=() pt=()
+	local l c t s i=0 pk=() pt=() ps=()
     declare -A local p
+    echo "[*] A brand new custom partition is starting !"
+	ddOfm $disk $dsm
     while true
     do
         echo "[*] Choose your partition table type !"
@@ -218,6 +224,7 @@ inputToDIY(){
         read t
         if [[ -n "$t" ]]
         then
+			[[ "$t" == "19" ]] && ps+=$c
             ((${#pk[@]} > 1)) && p[${pk[$c]}]+="t\n$c\n$t\n" || p[${pk[$c]}]+="t\n$t\n"
         fi
     done
@@ -228,6 +235,32 @@ inputToDIY(){
         l+="${p[${pt[i++]}]}"
     done
     echo -e -n "${l}w\n" | fdisk $disk
+	while true
+    do
+        echo -n "[-] Operating partition number: "
+        read c
+        [[ ! -n "$c" ]] && echo -e "\033[36m[*] Skip partition operating !\033[0m" && break
+        [[ ! "${!pk[@]}" =~ $c ]] && echo -e "\033[31m[x] Invalid input !\033[0m" && continue
+		echo -n "[-] Format partition type: "
+		read t
+        [[ ! -n "$t" ]] && echo -e "\033[36m[*] Skip partition format !\033[0m" && l=0 || l=1
+		(($l)) && mkfs -t "$t" "$disk$prefix$c"
+        echo -n "[-] Mount point for $disk$prefix$c: "
+        read t
+        [[ ! -n "$t" ]] && echo -e "\033[36m[*] Skip partition mount !\033[0m" && continue
+        [[ ! -e "$t" ]] && echo -e "\033[36m[x] Mount point does not exist !\033[0m" \
+			&& echo -e "\033[36m[*] Create directory $t !\033[0m" && mkdir -p "$t"
+		mountpoint -q $t &&  umount -R $t
+        mount "$disk$prefix$c" "$t"
+        echo "[*] Mount $disk$prefix$c to $t !"
+    done
+	for number in "${ps[@]}"
+	do
+		echo "[*] Format swap type for $disk$prefix$number !"
+		mkswap $disk$prefix$number
+		echo "[*] Mount swap partition for $disk$prefix$number !"
+		swapon $disk$prefix$number
+	done
 }
 
 disk="" types="" dsm=""
@@ -288,7 +321,8 @@ install(){
     echo "[*] Replace it with a domestic mirror download source !"
     mirror
     echo "[*] Sync Update Mirror !"
-    pacman -Syyu
+    pacman -Syy
+	echo -e -n "y\n" | pacman -S archlinux-keyring
     echo "[*] Install required packages !"
     pacstrap /mnt base linux linux-firmware
     echo -n "[*] Generate fstab file "
@@ -426,3 +460,7 @@ exit 0
 # BIOS install # echo -e -n "/dev/sda\nBIOS\n2\n" | ./install.sh "[password] ... "   #
 # UEFI install # echo -e -n "/dev/sda\nUEFI\n2\n" | ./install.sh "123 2 localhost 1" #
 ######################################################################################
+###########################################################################################################################################
+# custom install # /dev/sda1 [EFI] <300M> "mkfs.vfat" # /dev/sda2 [swap] <4G> "mkswap" # /dev/sda3 [ext4] <ALL> "mkfs.ext4"               #
+# echo -en "/dev/sda\nDIY\ng\n1\n300\n1\n2\n4G\n19\n3\n\n\n\n3\next4\n/mnt\n1\nvfat\n/mnt/boot\n\n2\n" | ./install.sh "123 2 localhost 1" #
+###########################################################################################################################################
