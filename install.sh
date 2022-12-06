@@ -385,10 +385,12 @@ chrootOf(){
     echo "LANG=en_US.UTF-8" > /etc/locale.conf
     [[ -n "$hostname" ]] || hostname="localhost"
     echo "$hostname" > /etc/hostname
+    network && ((!$?)) && exit 1
     echo "[*] Start installing *GRUB* boot !"
     echo -e -n "y\n" | pacman -S grub
     [[ ! -n "$types" ]] && echo -e "\033[36m[*] No partition type selected, defaults to 0 (BIOS) !\033[0m"  && types=0
     [[ ! -n "$removable" ]] && echo -e "\033[36m[*] Whether to install or not is not selected, the default is 0 (non-U disk installation) !\033[0m" && removable=0
+    network && ((!$?)) && exit 1
     (($types)) && echo "[*] Install the dependencies required for UEFI boot !" && echo -e -n "y\n" | pacman -S efibootmgr
     if [[ $types == 1 ]]
     then
@@ -408,7 +410,8 @@ chrootOf(){
     fi
     if ((${#args[@]} > i))
     then
-        pacman -S os-prober
+		network && ((!$?)) && exit 1
+        echo -e -n "y\n" | pacman -S os-prober
         echo "[*] Set other OS to boot !"
         sed -i 's/#GRUB_DISABLE_OS_PROBER=false/GRUB_DISABLE_OS_PROBER=false/g' /etc/default/grub
         while ((${#args[@]} > i))
@@ -427,6 +430,7 @@ chrootOf(){
     grub-mkconfig -o /boot/grub/grub.cfg
     (($removable)) && echo "[*] Hooks when setting up mobile installs !" && sed -i '/^HOOKS/s/ block//g' /etc/mkinitcpio.conf && sed -i '/^HOOKS/s/udev/udev block/g' /etc/mkinitcpio.conf
     [[ -n "$password" ]] && echo "[*] Set the root user password !" && echo -e -n "$password\n$password\n" | passwd
+    network && ((!$?)) && exit 1
     echo "[*] Install additional tools !"
     echo -e -n "\ny\n" | \
         pacman -S dhcpcd wpa_supplicant iwd netctl dialog wireless_tools vim openssh
