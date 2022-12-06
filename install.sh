@@ -16,12 +16,12 @@ network(){
     local status r=5
     while (($r && r--))
     do
-		status="$(curl -s baidu.com)"
+        status="$(curl -s baidu.com)"
         [[ -n "$status" ]] \
-			&& echo "[*] network status connecting !" \
-			&& break \
-			|| echo "[x] network status connection failed !"
-		sleep 1
+            && echo "[*] network status connecting !" \
+            && break \
+            || echo "[x] network status connection failed !"
+        sleep 1
     done
     return $r
 }
@@ -178,10 +178,10 @@ aext(){
 }
 
 inputToDIY(){
-	local l c t s i=0 pk=() pt=() ps=()
+    local l c t s i=0 pk=() pt=() ps=()
     declare -A local p
     echo "[*] A brand new custom partition is starting !"
-	ddOfm $disk $dsm
+    ddOfm $disk $dsm
     while true
     do
         echo "[*] Choose your partition table type !"
@@ -226,7 +226,7 @@ inputToDIY(){
         read t
         if [[ -n "$t" ]]
         then
-			[[ "$t" == "19" ]] && ps+=$c
+            [[ "$t" == "19" ]] && ps+=$c
             ((${#pk[@]} > 1)) && p[${pk[$c]}]+="t\n$c\n$t\n" || p[${pk[$c]}]+="t\n$t\n"
         fi
     done
@@ -237,32 +237,32 @@ inputToDIY(){
         l+="${p[${pt[i++]}]}"
     done
     echo -e -n "${l}w\n" | fdisk $disk
-	while true
+    while true
     do
         echo -n "[-] Operating partition number: "
         read c
         [[ ! -n "$c" ]] && echo -e "\033[36m[*] Skip partition operating !\033[0m" && break
         [[ ! "${!pk[@]}" =~ $c ]] && echo -e "\033[31m[x] Invalid input !\033[0m" && continue
-		echo -n "[-] Format partition type: "
-		read t
+        echo -n "[-] Format partition type: "
+        read t
         [[ ! -n "$t" ]] && echo -e "\033[36m[*] Skip partition format !\033[0m" && l=0 || l=1
-		(($l)) && mkfs -t "$t" "$disk$prefix$c"
+        (($l)) && mkfs -t "$t" "$disk$prefix$c"
         echo -n "[-] Mount point for $disk$prefix$c: "
         read t
         [[ ! -n "$t" ]] && echo -e "\033[36m[*] Skip partition mount !\033[0m" && continue
         [[ ! -e "$t" ]] && echo -e "\033[36m[x] Mount point does not exist !\033[0m" \
-			&& echo -e "\033[36m[*] Create directory $t !\033[0m" && mkdir -p "$t"
-		mountpoint -q $t &&  umount -R $t
+            && echo -e "\033[36m[*] Create directory $t !\033[0m" && mkdir -p "$t"
+        mountpoint -q $t &&  umount -R $t
         mount "$disk$prefix$c" "$t"
         echo "[*] Mount $disk$prefix$c to $t !"
     done
-	for number in "${ps[@]}"
-	do
-		echo "[*] Format swap type for $disk$prefix$number !"
-		mkswap $disk$prefix$number
-		echo "[*] Mount swap partition for $disk$prefix$number !"
-		swapon $disk$prefix$number
-	done
+    for number in "${ps[@]}"
+    do
+        echo "[*] Format swap type for $disk$prefix$number !"
+        mkswap $disk$prefix$number
+        echo "[*] Mount swap partition for $disk$prefix$number !"
+        swapon $disk$prefix$number
+    done
 }
 
 disk="" types="" dsm=""
@@ -324,7 +324,7 @@ install(){
     mirror
     echo "[*] Sync Update Mirror !"
     pacman -Syy
-	echo -e -n "y\n" | pacman -S archlinux-keyring
+    echo -e -n "y\n" | pacman -S archlinux-keyring
     echo "[*] Install required packages !"
     pacstrap /mnt base linux linux-firmware
     echo -n "[*] Generate fstab file "
