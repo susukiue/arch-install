@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 
 ######################################################################################
-# BIOS install # echo -e -n "/dev/sda\nBIOS\n2\n" | ./install.sh "[password] ... "   #
-# UEFI install # echo -e -n "/dev/sda\nUEFI\n2\n" | ./install.sh "123 2 localhost 1" #
+# BIOS install # echo -e -n "/dev/sda\n\nBIOS\n2\n" | ./install.sh "[password] ... "   #
+# UEFI install # echo -e -n "/dev/sda\n\nUEFI\n2\n" | ./install.sh "123 2 localhost 1" #
 ######################################################################################
 ###########################################################################################################################################
 # custom install # /dev/sda1 [EFI] <300M> "mkfs.vfat" # /dev/sda2 [swap] <4G> "mkswap" # /dev/sda3 [ext4] <ALL> "mkfs.ext4"               #
-# echo -en "/dev/sda\nDIY\ng\n1\n300\n1\n2\n4G\n19\n3\n\n\n\n3\next4\n/mnt\n1\nvfat\n/mnt/boot\n\n2\n" | ./install.sh "123 2 localhost 1" #
+# echo -en "/dev/sda\n\nDIY\ng\n1\n300\n1\n2\n4G\n19\n3\n\n\n\n3\next4\n/mnt\n1\nvfat\n/mnt/boot\n\n2\n" | ./install.sh "123 2 localhost 1" #
 ###########################################################################################################################################
 
 mountpoint -q /mnt && echo "[*] Unmount mount point /mnt !" && umount -R /mnt
@@ -469,10 +469,10 @@ fi
 exit 0
 
 ######################################################################################
-# BIOS install # echo -e -n "/dev/sda\nBIOS\n2\n" | ./install.sh "[password] ... "   #
-# UEFI install # echo -e -n "/dev/sda\nUEFI\n2\n" | ./install.sh "123 2 localhost 1" #
+# BIOS install # echo -e -n "/dev/sda\n\nBIOS\n2\n" | ./install.sh "[password] ... "   #
+# UEFI install # echo -e -n "/dev/sda\n\nUEFI\n2\n" | ./install.sh "123 2 localhost 1" #
 ######################################################################################
 ###########################################################################################################################################
 # custom install # /dev/sda1 [EFI] <300M> "mkfs.vfat" # /dev/sda2 [swap] <4G> "mkswap" # /dev/sda3 [ext4] <ALL> "mkfs.ext4"               #
-# echo -en "/dev/sda\nDIY\ng\n1\n300\n1\n2\n4G\n19\n3\n\n\n\n3\next4\n/mnt\n1\nvfat\n/mnt/boot\n\n2\n" | ./install.sh "123 2 localhost 1" #
+# echo -en "/dev/sda\n\nDIY\ng\n1\n300\n1\n2\n4G\n19\n3\n\n\n\n3\next4\n/mnt\n1\nvfat\n/mnt/boot\n\n2\n" | ./install.sh "123 2 localhost 1" #
 ###########################################################################################################################################
