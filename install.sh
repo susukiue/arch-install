@@ -90,7 +90,6 @@ size(){
     echo "$(zero $z)"
 }
 
-prefix=""
 diskInfo(){
     case $2 in
         0 )
@@ -265,11 +264,13 @@ inputToDIY(){
     done
 }
 
-disk="" types="" dsm=""
+disk="" prefix="" types="" dsm=""
 diskOf(){
     fdisk -l
-    echo -n "[-] Enter your disk(eg:/dev/sda): "
+    echo -n "[-] Enter your disk(eg:/dev/mmcblk0): "
     read disk
+    echo -n "[-] Enter you disk partitions number prefix(eg: mmcblk0p1 -> p): "
+    read prefix
     if [[ "${disk%/*}" == "/dev" ]]
     then
         echo "[*] The input disk is '$disk'"
@@ -304,6 +305,7 @@ declare -A mirrors=(
     ["Beijing Institute of Technology"]='https://mirror.bit.edu.cn/archlinux/$repo/os/$arch'
     ["Huawei Cloud"]='https://repo.huaweicloud.com/archlinux/$repo/os/$arch'
     ["Tencent Cloud"]='https://mirrors.cloud.tencent.com/archlinux/$repo/os/$arch'
+    ["USTC"]='https://mirrors.ustc.edu.cn//archlinux/$repo/os/$arch'
 )
 mirror(){
     local mks=("${!mirrors[@]}") mvs=("${mirrors[@]}") mi=0 m=$1
@@ -410,7 +412,7 @@ chrootOf(){
     fi
     if ((${#args[@]} > i))
     then
-		network && ((!$?)) && exit 1
+        network && ((!$?)) && exit 1
         echo -e -n "y\n" | pacman -S os-prober
         echo "[*] Set other OS to boot !"
         sed -i 's/#GRUB_DISABLE_OS_PROBER=false/GRUB_DISABLE_OS_PROBER=false/g' /etc/default/grub
