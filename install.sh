@@ -98,12 +98,32 @@ diskInfo(){
         1 )
             echo $(fdisk -l | sed -n "s?Disk $1: ?&?p" | sed "s?Disk $1: ??" | sed 's/.*, //' | sed 's/ sectors//')
             ;;
+        3 )
+            echo $(fdisk $1 -l | sed -n "s?Disk $1: ?&?p" | sed "s?Disk $1: ??" | sed 's/, .*//')
+            ;;
     esac
 }
 
-ddOfm(){
+ddOfmax(){
     local x=$(echo "$2" | awk '{printf "%d", $1 % 2}') y=$(echo "$2" | awk '{printf "%d", $1 / 2}')
-    dd if=/dev/zero of=$1 bs=2048k count=$(($x + $y))
+    dd if=/dev/zero of=$1 bs=2048 count=$(($x + $y))
+}
+
+minsize="100 M"
+ddOfmin(){
+    local x=$(echo "$2" | awk '{printf "%d", $1 % 2}') \
+        y=$(echo "$2" | awk '{printf "%d", $1 / 2}') \
+        n=$(lsblk /dev/sda | grep part -c) i=0
+    echo -n "[*] format ($i/$n) ..." && ((i++))
+    while (( i <= n ))
+    do
+        local c=$(size k $minsize)
+        (($(expr $c \> $(size k $(diskInfo $1${i} 3))))) && c=$(size k $(diskInfo $1${i} 3))
+        [ -n "$c" ] && (($c)) \
+            && dd if=/dev/zero of=$1${i} bs=2048 count=$c 2>/dev/null \
+            && echo -en "\033[9D($i/$n) ..." && ((i++))
+    done
+    echo -e "\033[3Dok!"
 }
 
 sizeOfUEFI="256 M"
@@ -112,7 +132,7 @@ diskOfUEFI(){
     [[ -n "$d" ]] || d=$disk
     [[ -n "$s" ]] || s=$dsm
     echo "[*] A brand new UEFI partition is starting !"
-    ddOfm $d $s
+    ddOfmin $d $s
     echo "[EFI] Allocate $(size m $sizeOfUEFI)M !"
     echo "[EFI] Set type to 'EFI System' !"
     echo "[SYSTEM] All the rest are allocated to the system partition !"
@@ -141,7 +161,7 @@ diskOfBIOS(){
     [[ -n "$d" ]] || d=$disk
     [[ -n "$s" ]] || s=$dsm
     echo "[*] A brand new BIOS partition is starting !"
-    ddOfm $d $s
+    ddOfmin $d $s
     echo "[BIOS] Allocate $(size m $sizeOfBIOS)M !"
     echo "[BIOS] Set type to 'BIOS boot' !"
     echo "[SYSTEM] All the rest are allocated to the system partition !"
@@ -180,7 +200,7 @@ inputToDIY(){
     local l c t s i=0 pk=() pt=() ps=()
     declare -A local p
     echo "[*] A brand new custom partition is starting !"
-    ddOfm $disk $dsm
+    ddOfmin $disk $dsm
     while true
     do
         echo "[*] Choose your partition table type !"
@@ -387,12 +407,12 @@ chrootOf(){
     echo "LANG=en_US.UTF-8" > /etc/locale.conf
     [[ -n "$hostname" ]] || hostname="localhost"
     echo "$hostname" > /etc/hostname
-    network && ((!$?)) && exit 1
+    network && while ((!$?)); do network; done
     echo "[*] Start installing *GRUB* boot !"
     echo -e -n "y\n" | pacman -S grub
     [[ ! -n "$types" ]] && echo -e "\033[36m[*] No partition type selected, defaults to 0 (BIOS) !\033[0m"  && types=0
     [[ ! -n "$removable" ]] && echo -e "\033[36m[*] Whether to install or not is not selected, the default is 0 (non-U disk installation) !\033[0m" && removable=0
-    network && ((!$?)) && exit 1
+    network && while ((!$?)); do network; done
     (($types)) && echo "[*] Install the dependencies required for UEFI boot !" && echo -e -n "y\n" | pacman -S efibootmgr
     if [[ $types == 1 ]]
     then
@@ -412,7 +432,7 @@ chrootOf(){
     fi
     if ((${#args[@]} > i))
     then
-        network && ((!$?)) && exit 1
+        network && while ((!$?)); do network; done
         echo -e -n "y\n" | pacman -S os-prober
         echo "[*] Set other OS to boot !"
         sed -i 's/#GRUB_DISABLE_OS_PROBER=false/GRUB_DISABLE_OS_PROBER=false/g' /etc/default/grub
@@ -432,33 +452,72 @@ chrootOf(){
     grub-mkconfig -o /boot/grub/grub.cfg
     (($removable)) && echo "[*] Hooks when setting up mobile installs !" && sed -i '/^HOOKS/s/ block//g' /etc/mkinitcpio.conf && sed -i '/^HOOKS/s/udev/udev block/g' /etc/mkinitcpio.conf
     [[ -n "$password" ]] && echo "[*] Set the root user password !" && echo -e -n "$password\n$password\n" | passwd
-    network && ((!$?)) && exit 1
+    network && while ((!$?)); do network; done
     echo "[*] Install additional tools !"
     echo -e -n "\ny\n" | \
-        pacman -S dhcpcd wpa_supplicant iwd netctl dialog wireless_tools vim openssh
+        pacman -S dhcpcd wpa_supplicant iwd wpa_supplicant netctl dialog wireless_tools vim openssh
     echo "[*] Setting services !"
     services
+    #conf_iwd <SSID> <PASSWD/PSK>
+    extends
     mountpoint -q /mnt && echo "[*] Unmount mount point /mounts/* !" && umount -R /mounts
 }
 
 services(){
+    systemctl enable systemd-networkd
+    systemctl enable systemd-resolved
     systemctl enable iwd
-    systemctl enable netctl
     systemctl enable sshd
+}
+
+extends(){
+    # Wired adapter using DHCP
+    cat > /etc/systemd/network/0-dhcpcd-eth.network << EOF
+[Match]
+Name=en*
+Name=eth*
+
+[Network]
+DHCP=yes
+IPv6PrivacyExtensions=yes
+
+[DHCP]
+RouteMetric=10
+EOF
+    # Wireless adapter
+    cat > /etc/systemd/network/0-dhcpcd-wls.network << EOF
+[Match]
+Name=wl*
+
+[Network]
+DHCP=yes
+IPv6PrivacyExtensions=yes
+
+[DHCP]
+RouteMetric=20
+EOF
+}
+
+conf_iwd(){
+    mkdir /var/lib/iwd/
+    (($# == 2)) && cat > /var/lib/iwd/$1.psk << EOF
+[Security]
+PreSharedKey=$2
+EOF
 }
 
 if [[ -n "$1" && $1 == 1 ]]
 then
-    network && (($?)) && exit 1
+    network && while ((!$?)); do network; done 
     chrootOf "$@"
 else
     echo "[*] Test network connecting !"
-    network && ((!$?)) && exit 1 
+    network && while ((!$?)); do network; done 
     sync
     diskOf
-    network && ((!$?)) && exit 1
+    network && while ((!$?)); do network; done
     install
-    network && ((!$?)) && exit 1
+    network && while ((!$?)); do network; done
     cp $0 /mnt
     arch-chroot /mnt /bin/bash -c "$0 1 $disk $@"
     echo "[*] Unmount all mounted partitions !"
